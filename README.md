@@ -16,8 +16,8 @@ Observability Stack:
 ### 📂 Clone the repository
 
 ```sh
-git clone https://github.com/georgelopez7/<add-here>.git
-cd add-here
+git clone https://github.com/georgelopez7/grpc-project.git
+cd grpc-project
 ```
 
 ### 🐋 Start the project
