@@ -80,7 +80,7 @@ The response tells us if the payment is both valid & if the payment is fraudulen
 
 Below is a diagram of the flow of a request through the system:
 
-<ADD_IMAGE_HERE>
+![grpc-project-diagram](https://github.com/user-attachments/assets/0da5ee8a-689b-42cb-81a8-12d4dbaca3f5)
 
 ---
 
