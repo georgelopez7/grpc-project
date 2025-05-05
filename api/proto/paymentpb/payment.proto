@@ -1,0 +1,30 @@
+syntax = "proto3";
+
+package order;
+
+option go_package = "github.com/georgelopez7/grpc-project/api/proto/paymentpb";
+
+message PaymentRequest {
+  string id = 1;
+  int32 amount = 2;
+  string sender = 3;
+  string receiver = 4;
+}
+
+message FraudResponse {
+    bool is_fraudulent = 1;
+    string message = 2;
+}
+
+message ValidationResponse {
+    bool is_valid = 1;
+    string message = 2;
+}
+
+service FraudService {
+    rpc FraudCheck(PaymentRequest) returns (FraudResponse);
+}
+
+service ValidationService {
+    rpc ValidatePayment(PaymentRequest) returns (ValidationResponse);
+}
