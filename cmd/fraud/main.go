@@ -8,12 +8,11 @@ import (
 )
 
 func init() {
-	// --- METRICS ---
+	// METRICS
 	metricsPort := os.Getenv("METRICS_PORT")
 	if metricsPort == "" {
 		metricsPort = "2112"
 	}
-
 	logging.InitMetricsEndpoint(metricsPort)
 }
 

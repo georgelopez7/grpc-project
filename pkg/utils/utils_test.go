@@ -6,7 +6,7 @@ import (
 	"github.com/georgelopez7/grpc-project/pkg/utils"
 )
 
-func TestIsFibonacci_EdgeCases(t *testing.T) {
+func TestIsFibonacci(t *testing.T) {
 	testCases := []struct {
 		input    int
 		expected bool

@@ -1,0 +1,107 @@
+auth_enabled: false
+# Purpose: Controls authentication for accessing Loki.
+# - false: No authentication is required. Anyone who can reach Loki can read/write logs.
+#          This is fine for local development but insecure for production.
+# - true: Enables authentication (e.g., via an auth proxy or OpenID Connect).
+
+server:
+  # Purpose: Configures Loki's built-in HTTP server.
+  # This server handles API requests for ingesting logs, querying logs, and metrics.
+  http_listen_port: 3100
+  # - http_listen_port: The TCP port Loki will listen on for HTTP traffic (e.g., 3100).
+
+ingester:
+  # Purpose: The ingester component is responsible for receiving log entries,
+  # batching them into "chunks," and writing these chunks to long-term storage.
+  # It also holds recent logs in memory to satisfy queries for new data.
+  lifecycler:
+    # Purpose: Manages the ingester's state within a Loki cluster (even if it's a single-node cluster).
+    # It handles how ingesters join and leave the "ring" (a distributed hash ring used to shard data).
+    address: 127.0.0.1
+    # - address: The network address this ingester announces. For a single binary on localhost, 127.0.0.1 is typical.
+    ring:
+      # Purpose: Configuration for the hash ring.
+      kvstore:
+        # Purpose: Configures the Key-Value store used by the ring to share state (e.g., ingester heartbeats, shard ownership).
+        store: inmemory
+        # - store: The type of KV store.
+        #   'inmemory': Stores ring data in memory. Simple for local setups but data is lost on restart.
+        #               For production, you'd use distributed stores like 'etcd' or 'consul'.
+      replication_factor: 1
+      # - replication_factor: How many copies of each log stream are written across different ingesters.
+      #   '1': No replication. Suitable for a single ingester setup.
+  wal:
+    # Purpose: Write Ahead Log (WAL) for the ingester.
+    # Incoming logs are written to the WAL before being processed into chunks.
+    # This prevents data loss if the ingester crashes before flushing chunks to storage.
+    enabled: true
+    # - enabled: Set to 'true' to enable the WAL. Highly recommended.
+    dir: /loki/wal
+    # - dir: The directory (inside the Loki container) where WAL files are stored.
+    #        This path should be on a persistent volume.
+
+schema_config:
+  # Purpose: Defines how Loki structures and stores its index and data (chunks) over time.
+  # Loki can use different schemas, and this allows for schema evolution.
+  configs:
+    - from: 2022-01-01
+      # A date in the past when this schema became active.
+      # - from: Specifies the start date for this schema configuration.
+      store: boltdb-shipper
+      # - store: The backend used for storing the log index.
+      #   'boltdb-shipper': Uses BoltDB (an embedded key/value database) for recent index entries
+      #                     and "ships" older index files to an object store. Good for scalable setups.
+      object_store: filesystem
+      # - object_store: Where the log data (chunks) and shipped index files are stored.
+      #   'filesystem': Stores data on the local filesystem of the Loki container (should be a persistent volume).
+      #                 Other options include 's3', 'gcs', 'azure' for cloud object storage.
+      schema: v11
+      # - schema: The version of the schema to use (e.g., v11, v12). 'v11' is a common, stable version.
+      index:
+        # Purpose: Configuration specific to the index.
+        prefix: index_
+        # - prefix: A prefix for the names of index tables/files in the store.
+        period: 24h
+        # - period: How frequently new index tables/files are created (e.g., daily).
+
+storage_config:
+  # Purpose: Provides detailed configuration for the storage backends defined in `schema_config`.
+  boltdb_shipper:
+    # Purpose: Configuration specific to the 'boltdb-shipper' index store.
+    active_index_directory: /loki/boltdb-shipper-active
+    # - active_index_directory: Directory (inside the container) for active BoltDB index files.
+    cache_location: /loki/boltdb-shipper-cache
+    # - cache_location: Directory for caching data related to the boltdb-shipper.
+    shared_store: filesystem
+    # - shared_store: Specifies that the object store used by the shipper (for older index files) is the 'filesystem'.
+  filesystem:
+    # Purpose: Configuration specific to the 'filesystem' object store.
+    directory: /loki/chunks
+    # - directory: Directory (inside the container) where log data chunks are stored.
+
+limits_config:
+  # Purpose: Defines various operational limits to prevent abuse and ensure stability.
+  # These can be applied globally or per-tenant in multi-tenant setups.
+  ingestion_rate_mb: 15
+  # - ingestion_rate_mb: Maximum rate (in MB/second) at which a tenant (or global if no auth) can send logs.
+  ingestion_burst_size_mb: 30
+  # - ingestion_burst_size_mb: Maximum allowed burst size (in MB) for log ingestion.
+  reject_old_samples: true
+  # - reject_old_samples: If 'true', Loki will reject log entries older than 'reject_old_samples_max_age'.
+  reject_old_samples_max_age: 168h # 7 days
+  # - reject_old_samples_max_age: Maximum allowed age for log entries. Helps prevent accidental ingestion of very old data.
+
+compactor:
+  # Purpose: The compactor component optimizes storage and enforces retention.
+  # It merges smaller index files and data chunks into larger, more efficient ones.
+  # It also handles the deletion of data that has exceeded its retention period.
+  working_directory: /loki/compactor
+  # - working_directory: A directory (inside the container) for the compactor to use for temporary files during its operations.
+  shared_store: filesystem
+  # - shared_store: Specifies the object store the compactor works against.
+  compaction_interval: 10m
+  # - compaction_interval: How frequently the compaction process runs.
+  retention_enabled: true
+  # - retention_enabled: If 'true', the compactor will delete data older than the configured retention period.
+  #   The actual retention period is typically determined by other settings (e.g., `boltdb_shipper` defaults or specific retention period settings).
+  #   For `boltdb-shipper` with `filesystem`, a common default retention for chunks is 30 days.

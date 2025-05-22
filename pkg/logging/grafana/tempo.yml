@@ -1,0 +1,18 @@
+apiVersion: 1
+
+datasources:
+  - name: Tempo
+    type: tempo
+    url: http://tempo:3200 # Tempo's HTTP port for Grafana to query
+    access: proxy
+    version: 1
+    editable: true
+    # Optional: Configure trace to logs/metrics if you want to link
+    # derived fields in Grafana for easier navigation
+    jsonData:
+      nodeGraph:
+        enabled: true
+      lokiSearch:
+        datasourceUid: "loki" # Use the UID of your Loki datasource
+      prometheusSearch:
+        datasourceUid: "prometheus" # Use the UID of your Prometheus datasource

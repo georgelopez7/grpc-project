@@ -5,36 +5,32 @@ import (
 	"log"
 	"os"
 
-	"github.com/georgelopez7/grpc-project/pkg/connections"
+	"github.com/georgelopez7/grpc-project/pkg/logging"
 	"github.com/gin-gonic/gin"
 )
 
 func StartGateway() {
-	// --- TRACING ---
+	// TRACING
 	tracerName := "gateway"
-	shutdown := InitTracer(tracerName)
+	shutdown := logging.InitTracer(tracerName)
 	defer func() {
 		if err := shutdown(context.Background()); err != nil {
 			log.Fatalf("Failed to shut down tracer: %v", err)
 		}
 	}()
 
-	// --- MICROSERVICES ---
-	connections.InitFraudServiceClient()
-	connections.InitValidationServiceClient()
-
-	// --- SERVER ---
+	// SERVER
 	router := gin.Default()
 
-	// --- ROUTES ---
-	router.POST("/api/v1/payments", SendMetrics, PaymentRequestHandler)
+	// ROUTES
+	router.POST("/api/v1/payments", AddMetrics, PaymentRequestHandler)
 
-	// --- PORT ---
+	// PORT
 	port := os.Getenv("PORT")
 	if port == "" {
 		port = "8080"
 	}
 
-	// --- RUN SERVER ---
+	// RUN SERVER
 	router.Run(":" + port)
 }

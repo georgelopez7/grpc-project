@@ -1,37 +1,44 @@
-package gateway
+package logging
 
 import (
 	"context"
 	"log"
 	"os"
 
-	"github.com/prometheus/client_golang/prometheus"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp"
+	"go.opentelemetry.io/otel/propagation"
 	"go.opentelemetry.io/otel/sdk/resource"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	semconv "go.opentelemetry.io/otel/semconv/v1.17.0"
 )
 
-// --- TRACING ---
+// FUNCTION TO INITIALIZE TRACER IN A SERVICE
 func InitTracer(serviceName string) func(context.Context) error {
+	// CONTEXT
 	ctx := context.Background()
 
+	// OTLP ENDPOINT
 	endpoint := os.Getenv("OTLP_ENDPOINT")
 	if endpoint == "" {
 		endpoint = "http://localhost:4318"
 	}
 
+	// EXPORTER (TO OPENTELEMETRY USING HTTP)
 	exporter, err := otlptracehttp.New(ctx, otlptracehttp.WithEndpoint(endpoint), otlptracehttp.WithInsecure())
 	if err != nil {
 		log.Fatalf("failed to create exporter: %v", err)
 	}
 
+	// IMPORTANT: PROPAGATE TRACE CONTEXT
+	otel.SetTextMapPropagator(propagation.TraceContext{})
+
+	// TRACER PROVIDER
 	tp := sdktrace.NewTracerProvider(
 		sdktrace.WithBatcher(exporter),
 		sdktrace.WithResource(resource.NewWithAttributes(
 			semconv.SchemaURL,
-			semconv.ServiceName(serviceName),
+			semconv.ServiceName(serviceName), // IMPORTANT: SET SERVICE NAME
 		)),
 	)
 
@@ -39,11 +46,3 @@ func InitTracer(serviceName string) func(context.Context) error {
 
 	return tp.Shutdown
 }
-
-// --- METRICS ---
-var PaymentRequestsCount = prometheus.NewCounter(
-	prometheus.CounterOpts{
-		Name: "gateway_payment_requests_total",
-		Help: "Total number of payment requests received by the gateway!",
-	},
-)

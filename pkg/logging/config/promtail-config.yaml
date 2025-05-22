@@ -1,0 +1,89 @@
+server:
+  # Purpose: Configures Promtail's own HTTP server.
+  # This server is primarily used to expose Promtail's metrics (for monitoring Promtail itself)
+  # and for health checks. It's not typically used for sending logs.
+  http_listen_port: 9080
+  # - http_listen_port: The TCP port Promtail's HTTP server listens on.
+  grpc_listen_port: 0
+  # - grpc_listen_port: The TCP port for Promtail's gRPC server.
+  #   '0' disables this port, as it's not commonly needed for Promtail's primary function of shipping logs.
+
+positions:
+  # Purpose: Configures where Promtail stores its "positions" file.
+  # This file keeps track of the last read location (offset) for each log file being tailed.
+  # This ensures that if Promtail restarts, it can resume reading logs from where it left off,
+  # preventing log loss or duplication.
+  filename: /tmp/positions.yaml
+  # - filename: Path (inside the Promtail container) to the positions file.
+  #   This should be mapped to a persistent Docker volume so positions are not lost on container restarts.
+
+clients:
+  # Purpose: Defines the Loki instance(s) to which Promtail will send the collected logs.
+  # You can configure multiple clients if you need to send logs to different Loki instances.
+  - url: http://loki:3100/loki/api/v1/push
+  # - url: The full URL of the Loki instance's log ingestion API endpoint.
+  #   'http://loki:3100' points to the 'loki' service defined in your docker-compose.yml.
+  #   '/loki/api/v1/push' is the standard API path for pushing logs to Loki.
+
+scrape_configs:
+  # Purpose: This is the main section where you define *what* logs Promtail should collect
+  # and *how* it should process and label them before sending them to Loki.
+  # You can have multiple entries under `scrape_configs` to handle different log sources or types.
+  - job_name: services
+    # - job_name: A user-defined name for this specific log collection job (e.g., "docker_containers", "system_logs").
+    #   This name can also be used as a default label (`job`) on the logs sent to Loki
+    #   if not overridden by `relabel_configs`.
+    docker_sd_configs:
+      # Purpose: Configures Docker Service Discovery.
+      # This tells Promtail to automatically discover and collect logs from Docker containers.
+      - host: unix:///var/run/docker.sock
+        # - host: Specifies how to connect to the Docker daemon.
+        #   'unix:///var/run/docker.sock': Promtail will connect to the Docker daemon via its Unix socket.
+        #                                This socket needs to be mounted into the Promtail container.
+        refresh_interval: 5s
+        # - refresh_interval: How often Promtail should poll the Docker API for changes if it's not
+        #                     relying solely on Docker events for updates.
+    relabel_configs:
+      # Purpose: A powerful mechanism to manipulate labels associated with log streams.
+      # Service discovery (like `docker_sd_configs`) provides a set of internal metadata labels (prefixed with `__meta_`).
+      # `relabel_configs` allow you to transform these internal labels into the final labels that
+      # will be attached to your logs in Loki. These final labels are crucial for querying and filtering logs.
+      # Relabeling rules are applied in the order they are defined.
+
+      - source_labels:
+          ["__meta_docker_container_label_com_docker_compose_project"]
+        # - source_labels: A list of existing internal labels whose values will be concatenated (with a separator, if multiple)
+        #                  to form the source for this rule. Here, it's the value of the Docker label
+        #                  'com.docker.compose.project' that Docker Compose automatically adds to containers.
+        target_label: "project"
+        # - target_label: The name of the new Loki label to create (e.g., 'project').
+        #   This rule takes the Docker Compose project name and sets it as the 'project' label in Loki.
+
+      - source_labels:
+          ["__meta_docker_container_label_com_docker_compose_service"]
+        target_label: "job"
+        #   This rule takes the Docker Compose service name (e.g., "gateway", "fraud")
+        #   and sets it as the 'job' label in Loki. This is a very common and useful label.
+
+      - source_labels: ["__meta_docker_container_name"]
+        # - source_labels: Uses the internal label `__meta_docker_container_name` which holds the full container name (e.g., "/myproject_gateway-1").
+        regex: "^/(.*)$"
+        # - regex: A regular expression applied to the concatenated source label values.
+        #   '^/(.*)$': This regex matches the entire string, captures everything after the initial '/',
+        #              effectively removing the leading slash from the container name.
+        target_label: "instance"
+        # - target_label: The extracted value (the container name without the leading slash) is assigned to the 'instance' label.
+
+      - source_labels: ["__meta_docker_container_log_stream"]
+        target_label: "stream"
+        #   This rule takes the Docker log stream type (e.g., 'stdout' or 'stderr')
+        #   and sets it as the 'stream' label in Loki.
+
+      - source_labels:
+          ["__meta_docker_container_label_com_docker_compose_service"]
+        regex: "promtail"
+        # - regex: Matches if the Docker Compose service name is exactly 'promtail'.
+        action: drop
+        # - action: Specifies what to do if the regex matches.
+        #   'drop': If the service name is 'promtail', this target (Promtail's own logs) will be dropped
+        #           and not sent to Loki. This prevents Promtail from ingesting its own logs in a loop.

@@ -24,6 +24,7 @@ services:
       - "50052:50052"
     environment:
       - METRICS_PORT=2112
+      - OTLP_ENDPOINT=tempo:4318
 
   validation:
     build:
@@ -33,26 +34,64 @@ services:
       - "50053:50053"
     environment:
       - METRICS_PORT=2113
+      - OTLP_ENDPOINT=tempo:4318
 
   prometheus:
     image: prom/prometheus
     volumes:
-      - ./pkg/logging/prometheus.yml:/etc/prometheus/prometheus.yml
+      - ./pkg/logging/config/prometheus-config.yaml:/etc/prometheus/prometheus.yml
+      - prometheus_data:/prometheus
     ports:
-      - "9090:9090"
+      - "9090:9090" # PROMETHEUS PORT
 
   tempo:
     image: grafana/tempo
     command: ["-config.file=/etc/tempo/tempo.yaml"]
     volumes:
-      - ./pkg/logging/tempo.yaml:/etc/tempo/tempo.yaml
+      - ./pkg/logging/config/tempo-config.yaml:/etc/tempo/tempo.yaml
     ports:
-      - "4318:4318"
-      - "3200:3200"
+      - "4318:4318" # OPENTELEMETRY PORT
+      - "3200:3200" # TEMPO PORT
+
+  loki:
+    image: grafana/loki:2.9.5
+    ports:
+      - "3100:3100"
+    volumes:
+      - ./pkg/logging/config/loki-config.yaml:/etc/loki/config.yaml
+      - loki_data:/loki
+    command: -config.file=/etc/loki/config.yaml
+
+  promtail:
+    image: grafana/promtail:2.9.5
+    volumes:
+      - ./pkg/logging/config/promtail-config.yaml:/etc/promtail/config.yml
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - promtail_positions:/tmp
+    command: -config.file=/etc/promtail/config.yml
+    depends_on:
+      - loki
 
   grafana:
     image: grafana/grafana
     ports:
       - "3000:3000"
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./pkg/logging/grafana:/etc/grafana/provisioning/datasources
     depends_on:
       - prometheus
+      - tempo
+      - loki
+    environment:
+      GF_AUTH_ANONYMOUS_ENABLED: "true" # Optional: For easier dev access without login
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Admin # Optional: Give anonymous users admin rights for dev
+      GF_AUTH_DISABLE_SIGNOUT_MENU: "true" # Optional: Remove sign-out button
+      GF_AUTH_DISABLE_LOGIN_FORM: "true" # Optional: Disable login form if anonymous is enabled
+      GF_THEME: light # Set default theme to light
+
+volumes:
+  prometheus_data:
+  loki_data:
+  promtail_positions:
+  grafana_data:
