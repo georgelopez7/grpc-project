@@ -1,0 +1,16 @@
+apiVersion: v2
+name: grpc-project
+description: A Helm umbrella chart for gateway, fraud, and validation
+version: 0.1.0
+type: application
+
+dependencies:
+  - name: gateway
+    version: 0.1.0
+    repository: "file://charts/gateway"
+  - name: fraud
+    version: 0.1.0
+    repository: "file://charts/fraud"
+  - name: validation
+    version: 0.1.0
+    repository: "file://charts/validation"

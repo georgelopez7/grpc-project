@@ -1,0 +1,8 @@
+gateway:
+  replicaCount: 1
+
+fraud:
+  replicaCount: 1
+
+validation:
+  replicaCount: 1

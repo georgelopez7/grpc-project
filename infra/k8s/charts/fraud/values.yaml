@@ -1,0 +1,16 @@
+image:
+  repository: fraud
+  tag: latest
+  pullPolicy: IfNotPresent
+
+service:
+  port: 50052
+
+metrics:
+  port: 2112
+
+env:
+  - name: METRICS_PORT
+    value: "2112"
+  - name: OTLP_ENDPOINT
+    value: "tempo:4318"

@@ -1,0 +1,16 @@
+image:
+  repository: validation
+  tag: latest
+  pullPolicy: IfNotPresent
+
+service:
+  port: 50053
+
+metrics:
+  port: 2113
+
+env:
+  - name: METRICS_PORT
+    value: "2112"
+  - name: OTLP_ENDPOINT
+    value: "tempo:4318"
