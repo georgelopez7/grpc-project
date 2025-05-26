@@ -46,15 +46,31 @@ ENV = dev
 PATH_TO_HELM_K8s = infra/k8s/
 PROJECT_NAME = grpc-project
 
-kube-deploy-local:
+# OS = windows| linux | mac
+kube-deploy-local: # make kube-deploy-local OS=windows
 	@echo "-> Starting Minikube..."
 	minikube start
 
-	@echo "-> Building Docker images inside Minikube..."
+	@echo "-> Building Docker images inside Minikube (OS=$(OS))..."
+ifeq ($(OS),windows)
 	@powershell -Command "minikube docker-env | Invoke-Expression; \
 		docker build -t gateway:latest -f docker/gateway.Dockerfile .; \
 		docker build -t fraud:latest -f docker/fraud.Dockerfile .; \
 		docker build -t validation:latest -f docker/validation.Dockerfile ."
+else ifeq ($(OS),mac)
+	@eval "$$(minikube docker-env)"; \
+	docker build -t gateway:latest -f docker/gateway.Dockerfile .; \
+	docker build -t fraud:latest -f docker/fraud.Dockerfile .; \
+	docker build -t validation:latest -f docker/validation.Dockerfile .
+else ifeq ($(OS),linux)
+	@eval "$$(minikube docker-env)"; \
+	docker build -t gateway:latest -f docker/gateway.Dockerfile .; \
+	docker build -t fraud:latest -f docker/fraud.Dockerfile .; \
+	docker build -t validation:latest -f docker/validation.Dockerfile .
+else
+	@echo "❌ Unsupported OS: $(OS). Please pass OS=windows, linux, or mac"
+	@exit 1
+endif
 
 	@echo "-> Creating namespace '$(PROJECT_NAME)' if it doesn't exist..."
 	kubectl create namespace "$(PROJECT_NAME)" --dry-run=client -o yaml | kubectl apply -f -
